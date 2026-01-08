@@ -9,8 +9,17 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.svm import LinearSVC
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, VotingClassifier
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+
+# Try to import XGBoost
+try:
+    import xgboost as xgb
+    XGBOOST_AVAILABLE = True
+except ImportError:
+    XGBOOST_AVAILABLE = False
+    print("Warning: XGBoost not available. Install with: pip install xgboost")
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -79,12 +88,54 @@ def train_evaluate():
     print(f"Vectorizer saved to: {vectorizer_file}")
     print()
     
-    # Define models
+    # Define base models
     models = {
         'lr': LogisticRegression(random_state=42, max_iter=1000),
         'nb': MultinomialNB(),
         'svm': LinearSVC(random_state=42, max_iter=1000)
     }
+    
+    # Add tree-based models if TF-IDF features are reasonable
+    # Note: Tree models work better with dense features, but we'll use them with sparse TF-IDF
+    if X_train_tfidf.shape[1] <= 50000:  # Only if feature count is reasonable
+        models['rf'] = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1, max_depth=20)
+        models['gb'] = GradientBoostingClassifier(n_estimators=100, random_state=42, max_depth=5, learning_rate=0.1)
+        
+        if XGBOOST_AVAILABLE:
+            models['xgb'] = xgb.XGBClassifier(
+                n_estimators=100,
+                random_state=42,
+                max_depth=5,
+                learning_rate=0.1,
+                eval_metric='logloss',
+                use_label_encoder=False
+            )
+        else:
+            print("Warning: XGBoost not available. Skipping XGBoost model.")
+    
+    # Create ensemble model (Voting Classifier with all available models)
+    print("Creating ensemble model...")
+    ensemble_estimators = []
+    # Add all models that support predict_proba for soft voting
+    for name, model in models.items():
+        if name not in ['ensemble']:  # Don't include ensemble itself
+            # Check if model supports predict_proba or can be calibrated
+            if hasattr(model, 'predict_proba') or name in ['lr', 'nb', 'rf', 'gb', 'xgb']:
+                ensemble_estimators.append((name, model))
+    
+    if len(ensemble_estimators) >= 2:
+        # Use soft voting if all models support probabilities, otherwise hard voting
+        use_soft_voting = all(hasattr(m, 'predict_proba') for _, m in ensemble_estimators)
+        models['ensemble'] = VotingClassifier(
+            estimators=ensemble_estimators,
+            voting='soft' if use_soft_voting else 'hard',
+            n_jobs=-1
+        )
+        print(f"Ensemble model created with {len(ensemble_estimators)} base models")
+        print(f"  Models: {', '.join([name for name, _ in ensemble_estimators])}")
+        print(f"  Voting: {'soft' if use_soft_voting else 'hard'}")
+    else:
+        print("Warning: Not enough models for ensemble. Skipping ensemble model.")
     
     # Cross-validation on train set
     print("=" * 80)
@@ -98,28 +149,39 @@ def train_evaluate():
     for name, model in models.items():
         print(f"Training {name.upper()}...")
         
-        # Cross-validation
-        cv_scores = cross_val_score(model, X_train_tfidf, y_train, cv=cv, scoring='accuracy', n_jobs=-1)
-        mean_accuracy = cv_scores.mean()
-        std_accuracy = cv_scores.std()
-        
-        print(f"  CV Accuracy: {mean_accuracy:.4f} (+/- {std_accuracy:.4f})")
-        
-        # Train on full train set
-        model.fit(X_train_tfidf, y_train)
-        
-        cv_results.append({
-            'model': name.upper(),
-            'mean_accuracy': mean_accuracy,
-            'std_accuracy': std_accuracy
-        })
-        
-        # Save model
-        model_file = artifacts_dir / f"{name}_model.pkl"
-        with open(model_file, 'wb') as f:
-            pickle.dump(model, f)
-        print(f"  Model saved to: {model_file}")
-        print()
+        try:
+            # Cross-validation
+            # For ensemble, use fewer jobs to avoid memory issues
+            n_jobs_cv = -1 if name != 'ensemble' else 1
+            cv_scores = cross_val_score(model, X_train_tfidf, y_train, cv=cv, scoring='accuracy', n_jobs=n_jobs_cv)
+            mean_accuracy = cv_scores.mean()
+            std_accuracy = cv_scores.std()
+            
+            print(f"  CV Accuracy: {mean_accuracy:.4f} (+/- {std_accuracy:.4f})")
+            
+            # Train on full train set
+            model.fit(X_train_tfidf, y_train)
+            
+            cv_results.append({
+                'model': name.upper(),
+                'mean_accuracy': mean_accuracy,
+                'std_accuracy': std_accuracy
+            })
+            
+            # Save model
+            model_file = artifacts_dir / f"{name}_model.pkl"
+            with open(model_file, 'wb') as f:
+                pickle.dump(model, f)
+            print(f"  Model saved to: {model_file}")
+            print()
+        except Exception as e:
+            print(f"  ERROR training {name.upper()}: {e}")
+            import traceback
+            traceback.print_exc()
+            print()
+            # Remove failed model from dict
+            models.pop(name, None)
+            continue
     
     # Save CV results
     cv_df = pd.DataFrame(cv_results)
@@ -137,49 +199,66 @@ def train_evaluate():
     training_results = []
     
     for name, model in models.items():
-        print(f"Evaluating {name.upper()} on training set...")
-        
-        # Predictions on training set
-        y_train_pred = model.predict(X_train_tfidf)
-        
-        # Metrics
-        train_accuracy = accuracy_score(y_train, y_train_pred)
-        train_precision = precision_score(y_train, y_train_pred, zero_division=0)
-        train_recall = recall_score(y_train, y_train_pred, zero_division=0)
-        train_f1 = f1_score(y_train, y_train_pred, zero_division=0)
-        
-        # AUC
-        train_auc = None
-        if hasattr(model, 'predict_proba'):
-            y_train_proba = model.predict_proba(X_train_tfidf)[:, 1]
-            train_auc = roc_auc_score(y_train, y_train_proba)
-        elif hasattr(model, 'decision_function'):
-            # For SVM, use calibrated classifier for probabilities
-            calibrated = CalibratedClassifierCV(model, cv=3)
-            calibrated.fit(X_train_tfidf, y_train)
-            y_train_proba = calibrated.predict_proba(X_train_tfidf)[:, 1]
-            train_auc = roc_auc_score(y_train, y_train_proba)
-        
-        # Get CV accuracy (mean ± SD)
-        cv_result = next(r for r in cv_results if r['model'] == name.upper())
-        
-        print(f"  CV Accuracy: {cv_result['mean_accuracy']:.4f} ± {cv_result['std_accuracy']:.4f}")
-        print(f"  Precision:   {train_precision:.4f}")
-        print(f"  Recall:     {train_recall:.4f}")
-        print(f"  F1-Score:   {train_f1:.4f}")
-        if train_auc:
-            print(f"  AUC:        {train_auc:.4f}")
-        print()
-        
-        training_results.append({
-            'model': name.upper(),
-            'accuracy_mean': cv_result['mean_accuracy'],
-            'accuracy_std': cv_result['std_accuracy'],
-            'precision': train_precision,
-            'recall': train_recall,
-            'f1_score': train_f1,
-            'auc': train_auc if train_auc else 'N/A'
-        })
+        try:
+            print(f"Evaluating {name.upper()} on training set...")
+            
+            # Predictions on training set
+            y_train_pred = model.predict(X_train_tfidf)
+            
+            # Metrics
+            train_accuracy = accuracy_score(y_train, y_train_pred)
+            train_precision = precision_score(y_train, y_train_pred, zero_division=0)
+            train_recall = recall_score(y_train, y_train_pred, zero_division=0)
+            train_f1 = f1_score(y_train, y_train_pred, zero_division=0)
+            
+            # AUC
+            train_auc = None
+            try:
+                if hasattr(model, 'predict_proba'):
+                    y_train_proba = model.predict_proba(X_train_tfidf)[:, 1]
+                    train_auc = roc_auc_score(y_train, y_train_proba)
+                elif hasattr(model, 'decision_function'):
+                    # For SVM, use calibrated classifier for probabilities
+                    calibrated = CalibratedClassifierCV(model, cv=3)
+                    calibrated.fit(X_train_tfidf, y_train)
+                    y_train_proba = calibrated.predict_proba(X_train_tfidf)[:, 1]
+                    train_auc = roc_auc_score(y_train, y_train_proba)
+            except Exception as e:
+                print(f"  Warning: Could not calculate AUC: {e}")
+                train_auc = None
+            
+            # Get CV accuracy (mean ± SD)
+            cv_result = next((r for r in cv_results if r['model'] == name.upper()), None)
+            if not cv_result:
+                print(f"  Warning: No CV result found for {name}")
+                continue
+            
+            print(f"  CV Accuracy: {cv_result['mean_accuracy']:.4f} ± {cv_result['std_accuracy']:.4f}")
+            print(f"  Precision:   {train_precision:.4f}")
+            print(f"  Recall:     {train_recall:.4f}")
+            print(f"  F1-Score:   {train_f1:.4f}")
+            if train_auc:
+                print(f"  AUC:        {train_auc:.4f}")
+            print()
+            
+            training_results.append({
+                'model': name.upper(),
+                'accuracy_mean': cv_result['mean_accuracy'],
+                'accuracy_std': cv_result['std_accuracy'],
+                'precision': train_precision,
+                'recall': train_recall,
+                'f1_score': train_f1,
+                'auc': train_auc if train_auc else 'N/A'
+            })
+        except Exception as e:
+            print(f"  ERROR evaluating {name.upper()}: {e}")
+            import traceback
+            traceback.print_exc()
+            continue
+            print(f"  ERROR evaluating {name.upper()}: {e}")
+            import traceback
+            traceback.print_exc()
+            continue
     
     # Save training results
     train_df = pd.DataFrame(training_results)
@@ -199,62 +278,77 @@ def train_evaluate():
     best_cv_score = -1
     
     for name, model in models.items():
-        print(f"Evaluating {name.upper()} on test set...")
+        try:
+            print(f"Evaluating {name.upper()} on test set...")
+            
+            # Predictions
+            y_pred = model.predict(X_test_tfidf)
+            
+            # Metrics
+            accuracy = accuracy_score(y_test, y_pred)
+            precision = precision_score(y_test, y_pred, zero_division=0)
+            recall = recall_score(y_test, y_pred, zero_division=0)
+            f1 = f1_score(y_test, y_pred, zero_division=0)
+            
+            # AUC
+            auc = None
+            try:
+                if hasattr(model, 'predict_proba'):
+                    y_proba = model.predict_proba(X_test_tfidf)[:, 1]
+                    auc = roc_auc_score(y_test, y_proba)
+                elif hasattr(model, 'decision_function'):
+                    # For SVM, use calibrated classifier for probabilities
+                    calibrated = CalibratedClassifierCV(model, cv=3)
+                    calibrated.fit(X_train_tfidf, y_train)
+                    y_proba = calibrated.predict_proba(X_test_tfidf)[:, 1]
+                    auc = roc_auc_score(y_test, y_proba)
+            except Exception as e:
+                print(f"  Warning: Could not calculate AUC for {name}: {e}")
+                auc = None
         
-        # Predictions
-        y_pred = model.predict(X_test_tfidf)
-        
-        # Metrics
-        accuracy = accuracy_score(y_test, y_pred)
-        precision = precision_score(y_test, y_pred, zero_division=0)
-        recall = recall_score(y_test, y_pred, zero_division=0)
-        f1 = f1_score(y_test, y_pred, zero_division=0)
-        
-        # AUC
-        auc = None
-        if hasattr(model, 'predict_proba'):
-            y_proba = model.predict_proba(X_test_tfidf)[:, 1]
-            auc = roc_auc_score(y_test, y_proba)
-        elif hasattr(model, 'decision_function'):
-            # For SVM, use calibrated classifier for probabilities
-            calibrated = CalibratedClassifierCV(model, cv=3)
-            calibrated.fit(X_train_tfidf, y_train)
-            y_proba = calibrated.predict_proba(X_test_tfidf)[:, 1]
-            auc = roc_auc_score(y_test, y_proba)
-        
-        print(f"  Accuracy:  {accuracy:.4f}")
-        print(f"  Precision: {precision:.4f}")
-        print(f"  Recall:    {recall:.4f}")
-        print(f"  F1-Score:  {f1:.4f}")
-        if auc:
-            print(f"  AUC:       {auc:.4f}")
-        print()
-        
-        # Get CV score for this model
-        cv_score = cv_results[list(models.keys()).index(name)]['mean_accuracy']
-        
-        test_results.append({
-            'model': name.upper(),
-            'accuracy': accuracy,
-            'precision': precision,
-            'recall': recall,
-            'f1_score': f1,
-            'auc': auc if auc else 'N/A',
-            'cv_mean_accuracy': cv_score
-        })
-        
-        # Track best model (by CV accuracy, tie-breaker: F1)
-        if best_model_name is None:
-            best_cv_score = cv_score
-            best_model_name = name
-        elif cv_score > best_cv_score:
-            best_cv_score = cv_score
-            best_model_name = name
-        elif cv_score == best_cv_score:
-            # Tie-breaker: use F1 score
-            best_f1 = next(r['f1_score'] for r in test_results if r['model'].lower() == best_model_name)
-            if f1 > best_f1:
+            print(f"  Accuracy:  {accuracy:.4f}")
+            print(f"  Precision: {precision:.4f}")
+            print(f"  Recall:    {recall:.4f}")
+            print(f"  F1-Score:  {f1:.4f}")
+            if auc:
+                print(f"  AUC:       {auc:.4f}")
+            print()
+            
+            # Get CV score for this model
+            cv_result = next((r for r in cv_results if r['model'] == name.upper()), None)
+            if not cv_result:
+                print(f"  Warning: No CV result found for {name}")
+                continue
+            
+            cv_score = cv_result['mean_accuracy']
+            
+            test_results.append({
+                'model': name.upper(),
+                'accuracy': accuracy,
+                'precision': precision,
+                'recall': recall,
+                'f1_score': f1,
+                'auc': auc if auc else 'N/A',
+                'cv_mean_accuracy': cv_score
+            })
+            
+            # Track best model (by CV accuracy, tie-breaker: F1)
+            if best_model_name is None:
+                best_cv_score = cv_score
                 best_model_name = name
+            elif cv_score > best_cv_score:
+                best_cv_score = cv_score
+                best_model_name = name
+            elif cv_score == best_cv_score:
+                # Tie-breaker: use F1 score
+                best_f1 = next((r['f1_score'] for r in test_results if r['model'].lower() == best_model_name), 0)
+                if f1 > best_f1:
+                    best_model_name = name
+        except Exception as e:
+            print(f"  ERROR evaluating {name.upper()} on test set: {e}")
+            import traceback
+            traceback.print_exc()
+            continue
     
     # Save test results
     test_df = pd.DataFrame(test_results)
@@ -269,6 +363,15 @@ def train_evaluate():
         f.write(best_model_name)
     print(f"Best model: {best_model_name.upper()} (CV accuracy: {best_cv_score:.4f})")
     print(f"Best model saved to: {best_file}")
+    print()
+    
+    # Print summary
+    print("=" * 80)
+    print("MODEL SUMMARY")
+    print("=" * 80)
+    print(f"Total models trained: {len(models)}")
+    print(f"Models: {', '.join([m.upper() for m in models.keys()])}")
+    print("=" * 80)
     print()
     
     # Generate model comparison report

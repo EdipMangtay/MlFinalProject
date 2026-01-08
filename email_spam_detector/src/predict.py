@@ -29,14 +29,22 @@ def load_artifacts():
     model_files = {
         'lr': 'lr_model.pkl',
         'nb': 'nb_model.pkl',
-        'svm': 'svm_model.pkl'
+        'svm': 'svm_model.pkl',
+        'rf': 'rf_model.pkl',
+        'gb': 'gb_model.pkl',
+        'xgb': 'xgb_model.pkl',
+        'ensemble': 'ensemble_model.pkl'
     }
     
     for name, filename in model_files.items():
         model_file = artifacts_dir / filename
         if model_file.exists():
-            with open(model_file, 'rb') as f:
-                models[name] = pickle.load(f)
+            try:
+                with open(model_file, 'rb') as f:
+                    models[name] = pickle.load(f)
+            except Exception as e:
+                print(f"Warning: Could not load {name} model: {e}")
+                continue
     
     # Load best model name
     best_file = artifacts_dir / "best_model.txt"

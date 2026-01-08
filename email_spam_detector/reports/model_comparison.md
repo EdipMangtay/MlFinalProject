@@ -25,6 +25,10 @@ SVM is widely recognized as one of the best-performing algorithms for TF-IDF-bas
 - For example, the LR model achieved Train F1 = 0.93 and Test F1 = 0.91, with a gap of 0.02.
 - For example, the NB model achieved Train F1 = 0.93 and Test F1 = 0.91, with a gap of 0.02.
 - For example, the SVM model achieved Train F1 = 0.99 and Test F1 = 0.94, with a gap of 0.06.
+- For example, the RF model achieved Train F1 = 0.71 and Test F1 = 0.67, with a gap of 0.05.
+- For example, the GB model achieved Train F1 = 0.94 and Test F1 = 0.89, with a gap of 0.05.
+- For example, the XGB model achieved Train F1 = 0.93 and Test F1 = 0.89, with a gap of 0.03.
+- For example, the ENSEMBLE model achieved Train F1 = 0.94 and Test F1 = 0.91, with a gap of 0.03.
 
 - The performance gap between training and testing is reasonable (approximately 0.04-0.07 for most models), indicating good generalization without significant overfitting.
 - Typically, overfitting would manifest as extremely high training performance (e.g., F1 ≈ 0.99) combined with a noticeable drop in testing performance, which did not occur in this study.
@@ -61,6 +65,10 @@ The results obtained across the 5 Stratified K-Fold splits were **highly consist
 | LR | 0.96 ± 0.00 | 0.99 | 0.89 | 0.93 | 1.00 |
 | NB | 0.96 ± 0.00 | 0.98 | 0.89 | 0.93 | 0.99 |
 | SVM | 0.98 ± 0.00 | 1.00 | 0.99 | 0.99 | 1.00 |
+| RF | 0.90 ± 0.00 | 1.00 | 0.56 | 0.71 | 0.99 |
+| GB | 0.96 ± 0.00 | 1.00 | 0.90 | 0.94 | 0.99 |
+| XGB | 0.96 ± 0.00 | 0.99 | 0.87 | 0.93 | 0.99 |
+| ENSEMBLE | 0.96 ± 0.00 | 1.00 | 0.88 | 0.94 | 1.00 |
 
 ## Testing Results
 
@@ -69,6 +77,10 @@ The results obtained across the 5 Stratified K-Fold splits were **highly consist
 | LR | 0.97 ± 0.00 | 0.97 | 0.86 | 0.91 | 0.99 |
 | NB | 0.97 ± 0.00 | 0.97 | 0.86 | 0.91 | 0.99 |
 | SVM | 0.98 ± 0.00 | 0.95 | 0.92 | 0.94 | 1.00 |
+| RF | 0.91 ± 0.00 | 1.00 | 0.50 | 0.67 | 0.98 |
+| GB | 0.96 ± 0.00 | 0.97 | 0.83 | 0.89 | 0.99 |
+| XGB | 0.96 ± 0.00 | 0.95 | 0.84 | 0.89 | 0.99 |
+| ENSEMBLE | 0.97 ± 0.00 | 0.99 | 0.84 | 0.91 | 0.99 |
 
 ## ALL CONCLUSION:
 
