@@ -629,6 +629,7 @@ if __name__ == '__main__':
     # Load environment variables
     load_dotenv()
     
+    # Railway ve diğer cloud platformlar için PORT environment variable'ını kullan
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
     
@@ -637,11 +638,13 @@ if __name__ == '__main__':
     print("=" * 80)
     print()
     print("Starting Flask server...")
+    print(f"Server running on port: {port}")
     print(f"Open your browser and navigate to: http://localhost:{port}")
     print()
     print("Press Ctrl+C to stop the server")
     print("=" * 80)
     print()
     
+    # Railway için host='0.0.0.0' kullan (zaten var)
     app.run(debug=debug, host='0.0.0.0', port=port)
 
