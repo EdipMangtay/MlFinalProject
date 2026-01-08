@@ -645,6 +645,6 @@ if __name__ == '__main__':
     print("=" * 80)
     print()
     
-    # Railway için host='0.0.0.0' kullan (zaten var)
+    # Railway için host='0.0.0.0' kullan ve production'da debug=False
     app.run(debug=debug, host='0.0.0.0', port=port)
 
