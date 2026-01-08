@@ -1,24 +1,50 @@
 # Dataset Description
 
-## Source Files
+## Custom Dataset Collection (Gmail)
 
-The following CSV files were used to create the unified dataset:
+**This project uses ONLY custom dataset collected from personal Gmail account.**
 
-- `_w1998.csv`
-- `abdallah.csv`
-- `kucev.csv`
+### Collection Method
+- **Source**: Personal Gmail account via IMAP protocol
+- **Collection Date**: January 8, 2025
+- **Collection Process**:
+  1. Connected to Gmail using IMAP (Internet Message Access Protocol)
+  2. Fetched emails from two folders:
+     - **INBOX folder**: Emails labeled as **ham (0)** - legitimate emails
+     - **SPAM folder**: Emails labeled as **spam (1)** - spam emails
+  3. Parsed email content (subject + body) using email parsing library
+  4. Applied text cleaning (lowercase, URL removal, etc.)
+  5. Removed duplicates and empty entries
+  6. Saved in CSV format
+
+### Dataset Statistics
+- **Total samples**: 1045
+- **Ham (0)**: 952 samples (91.1%)
+- **Spam (1)**: 93 samples (8.9%)
+
+### Source File
+
+- `gmail_dataset_20260108_185141.csv`
+
+### Data Collection Code
+
+The Gmail dataset was collected using `src/export_gmail_dataset.py`:
+```bash
+python -m src.export_gmail_dataset --inbox 1000 --spam 1000
+```
+
+This script:
+- Connects to Gmail via IMAP
+- Fetches emails from INBOX and SPAM folders
+- Parses email content (subject + body)
+- Applies text cleaning
+- Saves to CSV in `data/raw/` directory
 
 ## Label Mapping
 
 All labels were normalized to binary format:
 - `0` = ham / not spam
 - `1` = spam
-
-### Label Distribution
-
-- **Ham (0)**: 8736 samples
-- **Spam (1)**: 2016 samples
-- **Total**: 10752 samples
 
 ## Cleaning Steps Applied
 
@@ -32,14 +58,13 @@ The following text cleaning steps were applied to all email/message content:
 6. **Empty row removal**: Rows with empty text after cleaning removed
 7. **Duplicate removal**: Exact duplicate texts (based on cleaned text) removed
 
-## Dataset Statistics
+## Dataset Features
 
-- **Total samples**: 10752
-- **Features**: text, label, source_file
-- **Class balance**: 81.2% ham, 18.8% spam
+- **Text Column**: Combined subject + body content
+- **Label Column**: Binary (0 = ham, 1 = spam)
+- **Source File**: gmail_dataset_YYYYMMDD_HHMMSS.csv
 
-## Merging Rationale
+## Important Note
 
-Multiple datasets were merged to create a larger, more diverse training set. 
-Each row retains a `source_file` column indicating its origin for traceability. 
-The merging process ensures consistent column names and label encoding across all sources.
+**All data was collected by our own from personal Gmail account.**
+No public datasets were used in this project.

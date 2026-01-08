@@ -11,7 +11,7 @@ from utils import get_project_root, clean_text
 
 
 def prepare_dataset():
-    """Load all CSVs, merge, clean, and save unified dataset."""
+    """Load only Gmail custom dataset, clean, and save unified dataset."""
     project_root = get_project_root()
     raw_data_dir = project_root / "data" / "raw"
     data_dir = project_root / "data"
@@ -21,15 +21,22 @@ def prepare_dataset():
     data_dir.mkdir(parents=True, exist_ok=True)
     reports_dir.mkdir(parents=True, exist_ok=True)
     
-    # Find all CSV files
-    csv_files = list(raw_data_dir.glob("*.csv"))
+    # Find only the most recent Gmail dataset file (custom dataset only)
+    csv_files = sorted(list(raw_data_dir.glob("gmail_dataset_*.csv")), reverse=True)
     
     if not csv_files:
-        raise FileNotFoundError("No CSV files found in data/raw/")
+        raise FileNotFoundError("No Gmail dataset files found in data/raw/. Please run: python -m src.export_gmail_dataset")
+    
+    # Use only the most recent Gmail dataset
+    csv_files = [csv_files[0]]
+    print(f"Using custom Gmail dataset: {csv_files[0].name}")
+    print()
     
     print("=" * 80)
-    print("DATASET PREPARATION")
+    print("DATASET PREPARATION (CUSTOM GMAIL DATASET ONLY)")
     print("=" * 80)
+    print()
+    print("Using only custom Gmail dataset (excluding public datasets)")
     print()
     
     all_dataframes = []
@@ -177,9 +184,29 @@ def generate_dataset_description(df, source_files, reports_dir):
     lines = [
         "# Dataset Description",
         "",
-        "## Source Files",
+        "## Custom Dataset Collection (Gmail)",
         "",
-        "The following CSV files were used to create the unified dataset:",
+        "**This project uses ONLY custom dataset collected from personal Gmail account.**",
+        "",
+        "### Collection Method",
+        "- **Source**: Personal Gmail account via IMAP protocol",
+        "- **Collection Date**: January 8, 2025",
+        "- **Collection Process**:",
+        "  1. Connected to Gmail using IMAP (Internet Message Access Protocol)",
+        "  2. Fetched emails from two folders:",
+        "     - **INBOX folder**: Emails labeled as **ham (0)** - legitimate emails",
+        "     - **SPAM folder**: Emails labeled as **spam (1)** - spam emails",
+        "  3. Parsed email content (subject + body) using email parsing library",
+        "  4. Applied text cleaning (lowercase, URL removal, etc.)",
+        "  5. Removed duplicates and empty entries",
+        "  6. Saved in CSV format",
+        "",
+        "### Dataset Statistics",
+        f"- **Total samples**: {len(df)}",
+        f"- **Ham (0)**: {len(df[df['label'] == 0])} samples ({len(df[df['label'] == 0]) / len(df) * 100:.1f}%)",
+        f"- **Spam (1)**: {len(df[df['label'] == 1])} samples ({len(df[df['label'] == 1]) / len(df) * 100:.1f}%)",
+        "",
+        "### Source File",
         ""
     ]
     
@@ -188,17 +215,25 @@ def generate_dataset_description(df, source_files, reports_dir):
     
     lines.extend([
         "",
+        "### Data Collection Code",
+        "",
+        "The Gmail dataset was collected using `src/export_gmail_dataset.py`:",
+        "```bash",
+        "python -m src.export_gmail_dataset --inbox 1000 --spam 1000",
+        "```",
+        "",
+        "This script:",
+        "- Connects to Gmail via IMAP",
+        "- Fetches emails from INBOX and SPAM folders",
+        "- Parses email content (subject + body)",
+        "- Applies text cleaning",
+        "- Saves to CSV in `data/raw/` directory",
+        "",
         "## Label Mapping",
         "",
         "All labels were normalized to binary format:",
         "- `0` = ham / not spam",
         "- `1` = spam",
-        "",
-        "### Label Distribution",
-        "",
-        f"- **Ham (0)**: {len(df[df['label'] == 0])} samples",
-        f"- **Spam (1)**: {len(df[df['label'] == 1])} samples",
-        f"- **Total**: {len(df)} samples",
         "",
         "## Cleaning Steps Applied",
         "",
@@ -212,17 +247,16 @@ def generate_dataset_description(df, source_files, reports_dir):
         "6. **Empty row removal**: Rows with empty text after cleaning removed",
         "7. **Duplicate removal**: Exact duplicate texts (based on cleaned text) removed",
         "",
-        "## Dataset Statistics",
+        "## Dataset Features",
         "",
-        f"- **Total samples**: {len(df)}",
-        f"- **Features**: text, label, source_file",
-        f"- **Class balance**: {len(df[df['label'] == 0]) / len(df) * 100:.1f}% ham, {len(df[df['label'] == 1]) / len(df) * 100:.1f}% spam",
+        "- **Text Column**: Combined subject + body content",
+        "- **Label Column**: Binary (0 = ham, 1 = spam)",
+        "- **Source File**: gmail_dataset_YYYYMMDD_HHMMSS.csv",
         "",
-        "## Merging Rationale",
+        "## Important Note",
         "",
-        "Multiple datasets were merged to create a larger, more diverse training set. ",
-        "Each row retains a `source_file` column indicating its origin for traceability. ",
-        "The merging process ensures consistent column names and label encoding across all sources.",
+        "**All data was collected by our own from personal Gmail account.**",
+        "No public datasets were used in this project.",
         ""
     ])
     

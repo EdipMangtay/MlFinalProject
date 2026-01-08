@@ -4,12 +4,13 @@ A complete, local, report-aligned Stage 3 project for spam email classification 
 
 ## Features
 
-- **Classical ML Models**: TF-IDF vectorization with Logistic Regression, Multinomial Naive Bayes, and Linear SVM
+- **Classical ML Models**: TF-IDF vectorization with Logistic Regression, Multinomial Naive Bayes, Linear SVM, Random Forest, Gradient Boosting, XGBoost, and Ensemble (Voting Classifier)
 - **Stratified 5-Fold Cross-Validation**: Proper CV implementation with accuracy scoring
 - **Comprehensive Evaluation**: CV results, test set metrics (accuracy, precision, recall, F1, AUC)
 - **Explainability**: SHAP/coefficient-based explanations for model predictions
-- **Modern Web UI**: Flask-based interface for single email checks and batch CSV processing
+- **Modern Web UI**: Flask-based interface with automatic pipeline for Gmail email classification
 - **Gmail IMAP Integration**: Scan and classify emails directly from your Gmail inbox
+- **Custom Dataset Collection**: Export Gmail emails to dataset format for model training
 - **Professional Reports**: Auto-generated markdown reports for dataset description, CV results, test results, and model comparison
 
 ## Project Structure
