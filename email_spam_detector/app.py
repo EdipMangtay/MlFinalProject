@@ -4,6 +4,7 @@ import pandas as pd
 import io
 from pathlib import Path
 import sys
+from datetime import datetime
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -291,6 +292,159 @@ def api_imap_scan():
         }), 500
 
 
+def fallback_to_custom_dataset(limit, model_name, results, error_message):
+    """Fallback: Load emails from custom Gmail dataset when IMAP connection fails."""
+    try:
+        project_root = Path(__file__).parent
+        raw_data_dir = project_root / "data" / "raw"
+        
+        # Find most recent Gmail dataset
+        gmail_datasets = sorted(list(raw_data_dir.glob("gmail_dataset_*.csv")), reverse=True)
+        
+        if not gmail_datasets:
+            results['step1'] = {
+                'status': 'error',
+                'message': f'{error_message}. Also, no custom Gmail dataset found.',
+                'email': '',
+                'folders': []
+            }
+            return jsonify({
+                'success': False,
+                'results': results,
+                'message': error_message,
+                'fallback_available': False
+            }), 500
+        
+        # Load custom dataset
+        dataset_file = gmail_datasets[0]
+        df = pd.read_csv(dataset_file)
+        
+        # Limit samples
+        df_sample = df.head(limit * 2)  # Get more to have mix of ham/spam
+        
+        # Step 1: Mark as fallback
+        results['step1'] = {
+            'status': 'warning',
+            'message': f'IMAP connection failed. Using custom dataset: {dataset_file.name}',
+            'email': '',
+            'folders': []
+        }
+        
+        # Step 2: Prepare emails from dataset
+        inbox_count = len(df_sample[df_sample['label'] == 0])
+        spam_count = len(df_sample[df_sample['label'] == 1])
+        
+        results['step2'] = {
+            'status': 'success',
+            'message': f'Loaded {len(df_sample)} emails from custom dataset',
+            'inbox_count': inbox_count,
+            'spam_count': spam_count,
+            'total': len(df_sample)
+        }
+        
+        # Step 3: Process emails
+        parsed_emails = []
+        for idx, row in df_sample.iterrows():
+            try:
+                # Extract subject and body from text
+                text = str(row['text'])
+                # Try to extract subject if it starts with "subject:"
+                if text.lower().startswith('subject:'):
+                    parts = text.split(' ', 1)
+                    if len(parts) > 1:
+                        subject = parts[0].replace('subject:', '').strip()
+                        body = parts[1] if len(parts) > 1 else text
+                    else:
+                        subject = 'No Subject'
+                        body = text
+                else:
+                    # First 100 chars as subject, rest as body
+                    subject = text[:100] + ('...' if len(text) > 100 else '')
+                    body = text
+                
+                parsed_emails.append({
+                    'id': f'dataset_{idx}',
+                    'parsed': {
+                        'subject': subject,
+                        'body': body,
+                        'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        'snippet': body[:150] + ('...' if len(body) > 150 else ''),
+                        'from': 'Custom Dataset'
+                    },
+                    'original_label': int(row['label'])
+                })
+            except Exception as e:
+                print(f"Error processing dataset email {idx}: {e}")
+                continue
+        
+        results['step3'] = {
+            'status': 'success',
+            'message': f'Processed {len(parsed_emails)} emails from custom dataset',
+            'processed': len(parsed_emails)
+        }
+        
+        # Step 4: Classify all emails with model predictions
+        classified_emails = []
+        for email_item in parsed_emails:
+            try:
+                parsed = email_item['parsed']
+                email_text = f"{parsed['subject']} {parsed['body']}"
+                
+                # Predict with model
+                prediction = predict_text(email_text, model_name)
+                
+                # Get explanation
+                explanation = explain_text(email_text, model_name, top_k=5)
+                
+                classified_emails.append({
+                    'id': email_item['id'],
+                    'subject': parsed['subject'],
+                    'date': parsed['date'],
+                    'snippet': parsed['snippet'],
+                    'from': parsed['from'],
+                    'body': parsed['body'],
+                    'label': prediction['label'],  # Model prediction
+                    'label_text': 'SPAM' if prediction['label'] == 1 else 'NOT SPAM',
+                    'probability': prediction.get('probability', None),
+                    'explanation': explanation.get('tokens', []),
+                    'original_label': email_item.get('original_label', None),  # Original label from dataset
+                    'from_dataset': True  # Mark as from dataset
+                })
+            except Exception as e:
+                print(f"Error classifying email: {e}")
+                continue
+        
+        results['step4'] = {
+            'status': 'success',
+            'message': f'Classified {len(classified_emails)} emails from custom dataset',
+            'classified_emails': classified_emails
+        }
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'fallback_used': True,
+            'fallback_message': f'Using custom dataset due to IMAP connection failure: {error_message}'
+        })
+    
+    except Exception as e:
+        import traceback
+        error_detail = str(e)
+        print(f"Fallback error: {error_detail}")
+        print(traceback.format_exc())
+        results['step1'] = {
+            'status': 'error',
+            'message': f'IMAP failed and fallback also failed: {error_detail}',
+            'email': '',
+            'folders': []
+        }
+        return jsonify({
+            'success': False,
+            'results': results,
+            'message': f'IMAP connection failed and fallback error: {error_detail}'
+        }), 500
+
+
 @app.route('/api/imap/auto-pipeline', methods=['POST'])
 def api_auto_pipeline():
     """Automatic pipeline: connect, fetch from both INBOX and SPAM, classify all."""
@@ -331,13 +485,8 @@ def api_auto_pipeline():
             
             if not client.connect():
                 error_msg = 'Failed to connect to IMAP server. Check your Gmail App Password.'
-                results['step1'] = {
-                    'status': 'error',
-                    'message': error_msg,
-                    'email': client.email,
-                    'folders': []
-                }
-                return jsonify({'success': False, 'results': results, 'message': error_msg}), 500
+                # Fallback to custom dataset
+                return fallback_to_custom_dataset(limit, model_name, results, error_msg)
             
             folders = client.list_folders()
             results['step1'] = {
@@ -348,25 +497,15 @@ def api_auto_pipeline():
             }
         except ValueError as e:
             # This catches the ValueError from IMAPClient.__init__
-            results['step1'] = {
-                'status': 'error',
-                'message': str(e),
-                'email': '',
-                'folders': []
-            }
-            return jsonify({'success': False, 'results': results, 'message': str(e)}), 500
+            # Fallback to custom dataset
+            return fallback_to_custom_dataset(limit, model_name, results, str(e))
         except Exception as e:
             import traceback
             error_detail = str(e)
             print(f"Connection error: {error_detail}")
             print(traceback.format_exc())
-            results['step1'] = {
-                'status': 'error',
-                'message': f'Connection error: {error_detail}',
-                'email': '',
-                'folders': []
-            }
-            return jsonify({'success': False, 'results': results, 'message': error_detail}), 500
+            # Fallback to custom dataset
+            return fallback_to_custom_dataset(limit, model_name, results, f'Connection error: {error_detail}')
         
         # Step 2: Fetch emails from both INBOX and SPAM
         try:

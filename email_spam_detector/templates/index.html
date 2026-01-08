@@ -272,6 +272,35 @@
         </div>
     </div>
 
+    <!-- Fallback Warning Modal -->
+    <div id="fallback-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);">
+                <h2>⚠️ IMAP Bağlantı Hatası</h2>
+                <span class="modal-close" id="fallback-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="padding: 20px; background: #fff3cd; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ff9800;">
+                    <p id="fallback-message" style="margin: 0; color: #856404; font-weight: 500;"></p>
+                </div>
+                <div style="padding: 15px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #2196f3;">
+                    <h3 style="margin-top: 0; color: #1976d2;">🔄 Otomatik Fallback Aktif</h3>
+                    <p style="color: #1565c0; margin-bottom: 10px;">
+                        Gmail'e bağlanılamadığı için sistem otomatik olarak <strong>custom Gmail dataset'inizden</strong> email'leri yükleyecek ve sınıflandıracak.
+                    </p>
+                    <ul style="color: #1565c0; margin: 10px 0; padding-left: 20px;">
+                        <li>Custom dataset'ten email'ler okunuyor</li>
+                        <li>Eğitilmiş modeller ile tahmin yapılıyor</li>
+                        <li>Sonuçlar aynı şekilde gösterilecek</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="fallback-ok-btn">Tamam, Devam Et</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Auto Pipeline Function
         async function startAutoPipeline() {
@@ -295,6 +324,11 @@
                 const result = await response.json();
                 
                 if (result.success && result.results) {
+                    // Check if fallback was used
+                    if (result.fallback_used) {
+                        showFallbackPopup(result.fallback_message);
+                    }
+                    
                     updatePipelineSteps(result.results);
                     
                     // Display results
@@ -305,7 +339,11 @@
                     // Load and show model metrics modal
                     await loadAndShowModelMetrics(model);
                     
-                    showStatus('Pipeline completed successfully!', 'success');
+                    if (result.fallback_used) {
+                        showStatus('Pipeline completed using custom dataset!', 'success');
+                    } else {
+                        showStatus('Pipeline completed successfully!', 'success');
+                    }
                 } else {
                     const errorMsg = result.message || result.results?.step1?.message || 'Unknown error';
                     showStatus('Pipeline failed: ' + errorMsg, 'error');
@@ -456,6 +494,45 @@
             window.open('/api/download_test_results', '_blank');
         });
 
+        // Fallback popup function
+        function showFallbackPopup(message) {
+            const modal = document.getElementById('fallback-modal');
+            if (modal) {
+                const messageEl = document.getElementById('fallback-message');
+                if (messageEl) {
+                    messageEl.textContent = message || 'Gmail IMAP bağlantısı başarısız oldu.';
+                }
+                modal.style.display = 'block';
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeFallbackModal() {
+            const modal = document.getElementById('fallback-modal');
+            if (modal) {
+                modal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+            }
+        }
+
+        // Fallback modal event handlers
+        const fallbackClose = document.getElementById('fallback-close');
+        const fallbackOk = document.getElementById('fallback-ok-btn');
+        if (fallbackClose) {
+            fallbackClose.addEventListener('click', closeFallbackModal);
+        }
+        if (fallbackOk) {
+            fallbackOk.addEventListener('click', closeFallbackModal);
+        }
+        
+        // Close fallback modal when clicking outside
+        window.addEventListener('click', (e) => {
+            const modal = document.getElementById('fallback-modal');
+            if (e.target === modal) {
+                closeFallbackModal();
+            }
+        });
+
         // Change model in modal
         document.getElementById('modal-model-select').addEventListener('change', async (e) => {
             const modelName = e.target.value;
@@ -482,8 +559,12 @@
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 const modal = document.getElementById('model-results-modal');
-                if (modal.style.display === 'block') {
+                if (modal && modal.style.display === 'block') {
                     closeModal();
+                }
+                const fallbackModal = document.getElementById('fallback-modal');
+                if (fallbackModal && fallbackModal.style.display === 'block') {
+                    closeFallbackModal();
                 }
             }
         });
