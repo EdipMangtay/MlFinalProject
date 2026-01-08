@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Spam Detection System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📧 Email Spam Detection System</h1>
+            <p class="subtitle">AI-Powered Email Classification Pipeline</p>
+        </header>
+
+        <!-- Automatic Pipeline Section -->
+        <section class="card pipeline-card">
+            <div class="pipeline-header">
+                <div class="pipeline-icon">📧</div>
+                <div>
+                    <h2>Email Spam Detection System</h2>
+                    <p class="pipeline-subtitle">AI-Powered Email Classification Pipeline</p>
+                </div>
+            </div>
+            
+            <div class="pipeline-controls">
+                <button id="start-pipeline-btn" class="btn btn-primary btn-large">🚀 Start Automatic Pipeline</button>
+                <div class="form-group-inline">
+                    <label for="pipeline-model-select">Model:</label>
+                    <select id="pipeline-model-select">
+                        <option value="best">Best Model (Auto)</option>
+                        <option value="lr">Logistic Regression</option>
+                        <option value="nb">Multinomial Naive Bayes</option>
+                        <option value="svm">Support Vector Machine</option>
+                    </select>
+                </div>
+                <div class="form-group-inline">
+                    <label for="pipeline-limit">Fetch Limit:</label>
+                    <input type="number" id="pipeline-limit" value="20" min="1" max="100">
+                </div>
+            </div>
+
+            <!-- Step 1: Connecting to Gmail -->
+            <div class="pipeline-step" id="step1">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <div class="step-header">
+                        <h3>Connecting to Gmail</h3>
+                        <div class="step-status" id="step1-status">⏳</div>
+                    </div>
+                    <p class="step-description" id="step1-desc">Establishing secure connection...</p>
+                    <div class="step-details">
+                        <div class="detail-item">
+                            <span class="detail-label">EMAIL:</span>
+                            <span class="detail-value" id="step1-email">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">STATUS:</span>
+                            <span class="detail-value" id="step1-status-text">Waiting...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Fetching Emails -->
+            <div class="pipeline-step" id="step2">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <div class="step-header">
+                        <h3>Fetching Emails</h3>
+                        <div class="step-status" id="step2-status">⏳</div>
+                    </div>
+                    <p class="step-description" id="step2-desc">Retrieving emails from your inbox...</p>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="step2-progress"></div>
+                    </div>
+                    <div class="step-details">
+                        <div class="detail-item">
+                            <span class="detail-value" id="step2-count">0 emails fetched</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">INBOX:</span>
+                            <span class="detail-value" id="step2-inbox">0</span>
+                            <span class="detail-label" style="margin-left: 20px;">SPAM:</span>
+                            <span class="detail-value" id="step2-spam">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Building Dataset -->
+            <div class="pipeline-step" id="step3">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <div class="step-header">
+                        <h3>Building Dataset</h3>
+                        <div class="step-status" id="step3-status">⏳</div>
+                    </div>
+                    <p class="step-description" id="step3-desc">Preparing training data...</p>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="step3-progress"></div>
+                    </div>
+                    <div class="step-details">
+                        <div class="detail-item">
+                            <span class="detail-value" id="step3-desc-text">Processing and anonymizing emails...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4: Training AI Model / Classifying -->
+            <div class="pipeline-step" id="step4">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <div class="step-header">
+                        <h3>Classifying Emails</h3>
+                        <div class="step-status" id="step4-status">⏳</div>
+                    </div>
+                    <p class="step-description" id="step4-desc">Classifying emails with AI model...</p>
+                    <div class="progress-indicator">
+                        <div class="progress-dot active" id="dot1"></div>
+                        <div class="progress-dot" id="dot2"></div>
+                        <div class="progress-dot" id="dot3"></div>
+                        <div class="progress-dot" id="dot4"></div>
+                    </div>
+                    <div class="step-details">
+                        <div class="detail-item">
+                            <span class="detail-value" id="step4-desc-text">Classifying emails with trained model...</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Processed:</span>
+                            <span class="detail-value" id="step4-processed">0</span>
+                            <span class="detail-label" style="margin-left: 20px;">Accuracy:</span>
+                            <span class="detail-value" id="step4-accuracy">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Display -->
+            <div id="pipeline-results" class="pipeline-results" style="display: none;">
+                <h3>Classification Results</h3>
+                <div id="pipeline-emails-list" class="emails-list"></div>
+            </div>
+        </section>
+
+        <!-- Status Messages -->
+        <div id="status-message" class="status-message"></div>
+    </div>
+
+    <!-- Model Results Modal -->
+    <div id="model-results-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📊 Model Performance Metrics</h2>
+                <span class="modal-close" id="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="model-selector-section">
+                    <label for="modal-model-select">Select Model:</label>
+                    <select id="modal-model-select">
+                        <option value="best">Best Model (Auto)</option>
+                        <option value="lr">Logistic Regression</option>
+                        <option value="nb">Multinomial Naive Bayes</option>
+                        <option value="svm">Support Vector Machine</option>
+                    </select>
+                </div>
+
+                <div class="metrics-grid">
+                    <!-- Training Metrics -->
+                    <div class="metrics-card">
+                        <div class="metrics-header">
+                            <h3>📈 Training Results</h3>
+                            <span class="metrics-badge training">Training Set</span>
+                        </div>
+                        <div class="metrics-content">
+                            <div class="metric-item">
+                                <span class="metric-label">Accuracy (Mean ± SD):</span>
+                                <span class="metric-value" id="train-accuracy">-</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">Precision:</span>
+                                <span class="metric-value" id="train-precision">-</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">Recall:</span>
+                                <span class="metric-value" id="train-recall">-</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">F1-Score:</span>
+                                <span class="metric-value" id="train-f1">-</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">AUC:</span>
+                                <span class="metric-value" id="train-auc">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Test Metrics -->
+                    <div class="metrics-card">
+                        <div class="metrics-header">
+                            <h3>🎯 Test Results</h3>
+                            <span class="metrics-badge test">Test Set</span>
+                        </div>
+                        <div class="metrics-content">
+                            <div class="metric-item">
+                                <span class="metric-label">Accuracy:</span>
+                                <span class="metric-value" id="test-accuracy">-</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">Precision:</span>
+                                <span class="metric-value" id="test-precision">-</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">Recall:</span>
+                                <span class="metric-value" id="test-recall">-</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">F1-Score:</span>
+                                <span class="metric-value" id="test-f1">-</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">AUC:</span>
+                                <span class="metric-value" id="test-auc">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cross-Validation Details -->
+                <div class="cv-section">
+                    <h3>🔄 Cross-Validation Details</h3>
+                    <div class="cv-info">
+                        <div class="cv-item">
+                            <span class="cv-label">CV Method:</span>
+                            <span class="cv-value">Stratified 5-Fold</span>
+                        </div>
+                        <div class="cv-item">
+                            <span class="cv-label">Scoring Metric:</span>
+                            <span class="cv-value">Accuracy</span>
+                        </div>
+                        <div class="cv-item">
+                            <span class="cv-label">Mean Accuracy:</span>
+                            <span class="cv-value" id="cv-mean">-</span>
+                        </div>
+                        <div class="cv-item">
+                            <span class="cv-label">Std Deviation:</span>
+                            <span class="cv-value" id="cv-std">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Model Comparison Chart -->
+                <div class="comparison-section">
+                    <h3>📊 All Models Comparison</h3>
+                    <div id="models-comparison-table" class="comparison-table"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="modal-close-btn">Close</button>
+                <button class="btn btn-primary" id="view-full-report-btn">View Full Report</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Auto Pipeline Function
+        async function startAutoPipeline() {
+            const limit = parseInt(document.getElementById('pipeline-limit').value) || 20;
+            const model = document.getElementById('pipeline-model-select').value;
+            const startBtn = document.getElementById('start-pipeline-btn');
+            
+            startBtn.disabled = true;
+            startBtn.textContent = '⏳ Processing...';
+            
+            // Reset all steps
+            resetPipelineSteps();
+            
+            try {
+                const response = await fetch('/api/imap/auto-pipeline', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({limit, model})
+                });
+                
+                const result = await response.json();
+                
+                if (result.success && result.results) {
+                    updatePipelineSteps(result.results);
+                    
+                    // Display results
+                    if (result.results.step4 && result.results.step4.classified_emails) {
+                        displayPipelineEmails(result.results.step4.classified_emails);
+                    }
+                    
+                    // Load and show model metrics modal
+                    await loadAndShowModelMetrics(model);
+                    
+                    showStatus('Pipeline completed successfully!', 'success');
+                } else {
+                    const errorMsg = result.message || result.results?.step1?.message || 'Unknown error';
+                    showStatus('Pipeline failed: ' + errorMsg, 'error');
+                    if (result.results) {
+                        updatePipelineSteps(result.results);
+                    }
+                }
+            } catch (e) {
+                showStatus('Error: ' + e.message, 'error');
+                console.error('Pipeline error:', e);
+            } finally {
+                startBtn.disabled = false;
+                startBtn.textContent = '🚀 Start Automatic Pipeline';
+            }
+        }
+
+        // Load and show model metrics
+        async function loadAndShowModelMetrics(modelName) {
+            try {
+                // Load evaluation summary
+                const response = await fetch('/api/evaluation_summary');
+                const data = await response.json();
+                
+                if (data.cv_results && data.test_results) {
+                    // Determine which model to show
+                    let selectedModel = modelName;
+                    if (modelName === 'best') {
+                        // Find best model by CV accuracy
+                        let bestAcc = -1;
+                        for (const cv of data.cv_results) {
+                            const acc = parseFloat(cv.mean_accuracy);
+                            if (acc > bestAcc) {
+                                bestAcc = acc;
+                                selectedModel = cv.model.toLowerCase();
+                            }
+                        }
+                    }
+                    
+                    // Update modal model selector
+                    document.getElementById('modal-model-select').value = selectedModel;
+                    
+                    // Load metrics for selected model
+                    loadModelMetrics(selectedModel, data.cv_results, data.test_results, data.training_results);
+                    
+                    // Show modal with animation
+                    const modal = document.getElementById('model-results-modal');
+                    modal.style.display = 'block';
+                    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+                } else {
+                    console.warn('No evaluation data available');
+                }
+            } catch (e) {
+                console.error('Error loading metrics:', e);
+                showStatus('Error loading model metrics: ' + e.message, 'error');
+            }
+        }
+
+        // Load model metrics into modal
+        function loadModelMetrics(modelName, cvResults, testResults, trainingResults) {
+            // Find model data
+            const modelUpper = modelName.toUpperCase();
+            const cvData = cvResults ? cvResults.find(r => r.model === modelUpper) : null;
+            const testData = testResults ? testResults.find(r => r.model === modelUpper) : null;
+            const trainData = trainingResults ? trainingResults.find(r => r.model === modelUpper) : null;
+            
+            // Update training metrics
+            if (trainData) {
+                document.getElementById('train-accuracy').textContent = 
+                    `${parseFloat(trainData.accuracy_mean).toFixed(4)} ± ${parseFloat(trainData.accuracy_std).toFixed(4)}`;
+                document.getElementById('train-precision').textContent = parseFloat(trainData.precision).toFixed(4);
+                document.getElementById('train-recall').textContent = parseFloat(trainData.recall).toFixed(4);
+                document.getElementById('train-f1').textContent = parseFloat(trainData.f1_score).toFixed(4);
+                document.getElementById('train-auc').textContent = trainData.auc !== 'N/A' ? parseFloat(trainData.auc).toFixed(4) : 'N/A';
+            }
+            
+            // Update test metrics
+            if (testData) {
+                document.getElementById('test-accuracy').textContent = parseFloat(testData.accuracy).toFixed(4);
+                document.getElementById('test-precision').textContent = parseFloat(testData.precision).toFixed(4);
+                document.getElementById('test-recall').textContent = parseFloat(testData.recall).toFixed(4);
+                document.getElementById('test-f1').textContent = parseFloat(testData.f1_score).toFixed(4);
+                document.getElementById('test-auc').textContent = testData.auc !== 'N/A' ? parseFloat(testData.auc).toFixed(4) : 'N/A';
+            }
+            
+            // Update CV metrics
+            if (cvData) {
+                document.getElementById('cv-mean').textContent = parseFloat(cvData.mean_accuracy).toFixed(4);
+                document.getElementById('cv-std').textContent = `± ${parseFloat(cvData.std_accuracy).toFixed(4)}`;
+            }
+            
+            // Update comparison table
+            updateComparisonTable(cvResults, testResults, trainingResults);
+        }
+
+        // Update comparison table
+        function updateComparisonTable(cvResults, testResults, trainingResults) {
+            const tableDiv = document.getElementById('models-comparison-table');
+            
+            if (!cvResults || cvResults.length === 0) {
+                tableDiv.innerHTML = '<p>No comparison data available.</p>';
+                return;
+            }
+            
+            let html = '<table class="metrics-table"><thead><tr>';
+            html += '<th>Model</th>';
+            html += '<th>CV Accuracy</th>';
+            html += '<th>Test Accuracy</th>';
+            html += '<th>Test Precision</th>';
+            html += '<th>Test Recall</th>';
+            html += '<th>Test F1</th>';
+            html += '<th>Test AUC</th>';
+            html += '</tr></thead><tbody>';
+            
+            for (const cv of cvResults) {
+                const test = testResults ? testResults.find(t => t.model === cv.model) : null;
+                const train = trainingResults ? trainingResults.find(t => t.model === cv.model) : null;
+                
+                html += '<tr>';
+                html += `<td><strong>${cv.model}</strong></td>`;
+                html += `<td>${parseFloat(cv.mean_accuracy).toFixed(4)} ± ${parseFloat(cv.std_accuracy).toFixed(4)}</td>`;
+                if (test) {
+                    html += `<td>${parseFloat(test.accuracy).toFixed(4)}</td>`;
+                    html += `<td>${parseFloat(test.precision).toFixed(4)}</td>`;
+                    html += `<td>${parseFloat(test.recall).toFixed(4)}</td>`;
+                    html += `<td>${parseFloat(test.f1_score).toFixed(4)}</td>`;
+                    html += `<td>${test.auc !== 'N/A' ? parseFloat(test.auc).toFixed(4) : 'N/A'}</td>`;
+                } else {
+                    html += '<td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>';
+                }
+                html += '</tr>';
+            }
+            
+            html += '</tbody></table>';
+            tableDiv.innerHTML = html;
+        }
+
+        // Modal event handlers
+        function closeModal() {
+            const modal = document.getElementById('model-results-modal');
+            modal.style.display = 'none';
+            document.body.style.overflow = 'auto'; // Restore scrolling
+        }
+
+        document.getElementById('modal-close').addEventListener('click', closeModal);
+        document.getElementById('modal-close-btn').addEventListener('click', closeModal);
+
+        document.getElementById('view-full-report-btn').addEventListener('click', () => {
+            window.open('/api/download_test_results', '_blank');
+        });
+
+        // Change model in modal
+        document.getElementById('modal-model-select').addEventListener('change', async (e) => {
+            const modelName = e.target.value;
+            try {
+                const response = await fetch('/api/evaluation_summary');
+                const data = await response.json();
+                if (data.cv_results && data.test_results) {
+                    loadModelMetrics(modelName, data.cv_results, data.test_results, data.training_results);
+                }
+            } catch (e) {
+                console.error('Error loading metrics:', e);
+            }
+        });
+
+        // Close modal when clicking outside
+        window.addEventListener('click', (e) => {
+            const modal = document.getElementById('model-results-modal');
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('model-results-modal');
+                if (modal.style.display === 'block') {
+                    closeModal();
+                }
+            }
+        });
+
+        function resetPipelineSteps() {
+            for (let i = 1; i <= 4; i++) {
+                document.getElementById(`step${i}-status`).textContent = '⏳';
+                document.getElementById(`step${i}-status`).className = 'step-status pending';
+                document.getElementById(`step${i}-desc`).textContent = 'Waiting...';
+            }
+            
+            document.getElementById('step1-email').textContent = '-';
+            document.getElementById('step1-status-text').textContent = 'Connecting...';
+            document.getElementById('step2-count').textContent = '0 emails fetched';
+            document.getElementById('step2-inbox').textContent = '0';
+            document.getElementById('step2-spam').textContent = '0';
+            document.getElementById('step2-progress').style.width = '0%';
+            document.getElementById('step3-progress').style.width = '0%';
+            document.getElementById('step4-processed').textContent = '0';
+            document.getElementById('step4-accuracy').textContent = '-';
+            
+            // Reset progress dots
+            for (let i = 1; i <= 4; i++) {
+                document.getElementById(`dot${i}`).classList.remove('active');
+            }
+            
+            document.getElementById('pipeline-results').style.display = 'none';
+        }
+
+        function updatePipelineSteps(results) {
+            // Step 1: Connection
+            if (results.step1) {
+                const step1 = results.step1;
+                const statusEl = document.getElementById('step1-status');
+                const statusTextEl = document.getElementById('step1-status-text');
+                
+                if (step1.status === 'success') {
+                    statusEl.textContent = '✓';
+                    statusEl.className = 'step-status success';
+                    statusTextEl.textContent = 'Connected';
+                    document.getElementById('step1-email').textContent = step1.email || '-';
+                    document.getElementById('step1-desc').textContent = step1.message || 'Connected successfully';
+                } else if (step1.status === 'error') {
+                    statusEl.textContent = '✗';
+                    statusEl.className = 'step-status error';
+                    statusTextEl.textContent = 'Failed';
+                    document.getElementById('step1-desc').textContent = step1.message || 'Connection failed';
+                }
+            }
+            
+            // Step 2: Fetching
+            if (results.step2) {
+                const step2 = results.step2;
+                const statusEl = document.getElementById('step2-status');
+                
+                if (step2.status === 'success') {
+                    statusEl.textContent = '✓';
+                    statusEl.className = 'step-status success';
+                    document.getElementById('step2-desc').textContent = step2.message || 'Emails fetched';
+                    document.getElementById('step2-count').textContent = `${step2.total} emails fetched`;
+                    document.getElementById('step2-inbox').textContent = step2.inbox_count || 0;
+                    document.getElementById('step2-spam').textContent = step2.spam_count || 0;
+                    document.getElementById('step2-progress').style.width = '100%';
+                } else if (step2.status === 'error') {
+                    statusEl.textContent = '✗';
+                    statusEl.className = 'step-status error';
+                    document.getElementById('step2-desc').textContent = step2.message || 'Failed to fetch';
+                }
+            }
+            
+            // Step 3: Processing
+            if (results.step3) {
+                const step3 = results.step3;
+                const statusEl = document.getElementById('step3-status');
+                
+                if (step3.status === 'success') {
+                    statusEl.textContent = '✓';
+                    statusEl.className = 'step-status success';
+                    document.getElementById('step3-desc').textContent = step3.message || 'Emails processed';
+                    document.getElementById('step3-desc-text').textContent = `Processed ${step3.processed} emails`;
+                    document.getElementById('step3-progress').style.width = '100%';
+                } else if (step3.status === 'error') {
+                    statusEl.textContent = '✗';
+                    statusEl.className = 'step-status error';
+                    document.getElementById('step3-desc').textContent = step3.message || 'Processing failed';
+                }
+            }
+            
+            // Step 4: Classification
+            if (results.step4) {
+                const step4 = results.step4;
+                const statusEl = document.getElementById('step4-status');
+                
+                if (step4.status === 'success') {
+                    statusEl.textContent = '✓';
+                    statusEl.className = 'step-status success';
+                    document.getElementById('step4-desc').textContent = step4.message || 'Classification complete';
+                    document.getElementById('step4-processed').textContent = step4.classified_emails?.length || 0;
+                    
+                    // Calculate accuracy (spam detection rate)
+                    if (step4.classified_emails && step4.classified_emails.length > 0) {
+                        const spamCount = step4.classified_emails.filter(e => e.label === 1).length;
+                        const accuracy = ((spamCount / step4.classified_emails.length) * 100).toFixed(1);
+                        document.getElementById('step4-accuracy').textContent = `${accuracy}% spam detected`;
+                    }
+                    
+                    // Animate progress dots
+                    for (let i = 1; i <= 4; i++) {
+                        setTimeout(() => {
+                            document.getElementById(`dot${i}`).classList.add('active');
+                        }, i * 200);
+                    }
+                } else if (step4.status === 'error') {
+                    statusEl.textContent = '✗';
+                    statusEl.className = 'step-status error';
+                    document.getElementById('step4-desc').textContent = step4.message || 'Classification failed';
+                }
+            }
+        }
+
+        function displayPipelineEmails(emails) {
+            const resultsDiv = document.getElementById('pipeline-results');
+            const emailsListDiv = document.getElementById('pipeline-emails-list');
+            
+            if (emails.length === 0) {
+                emailsListDiv.innerHTML = '<p>No emails to display.</p>';
+                resultsDiv.style.display = 'block';
+                return;
+            }
+            
+            let html = '';
+            emails.forEach((email, index) => {
+                const isSpam = email.label === 1;
+                const cardClass = isSpam ? 'email-card spam' : 'email-card ham';
+                const badgeClass = isSpam ? 'badge badge-spam' : 'badge badge-ham';
+                
+                const probText = email.probability !== null && email.probability !== undefined 
+                    ? `${(email.probability * 100).toFixed(2)}%` 
+                    : 'N/A';
+                
+                let tokensHtml = '';
+                if (email.explanation && email.explanation.length > 0) {
+                    tokensHtml = '<div class="explanation-tokens">';
+                    email.explanation.forEach(token => {
+                        const tokenClass = token.sign === 'positive' ? 'token spam' : 'token ham';
+                        tokensHtml += `<span class="${tokenClass}">${token.token} (${token.impact > 0 ? '+' : ''}${token.impact.toFixed(3)})</span>`;
+                    });
+                    tokensHtml += '</div>';
+                }
+                
+                html += `
+                    <div class="${cardClass}">
+                        <div class="email-header">
+                            <span class="${badgeClass}">${email.label_text}</span>
+                            <span class="email-probability">Confidence: ${probText}</span>
+                        </div>
+                        <div class="email-subject">${email.subject}</div>
+                        <div class="email-meta">
+                            <span class="email-date">📅 ${email.date}</span>
+                            <span class="email-from">From: ${email.from}</span>
+                        </div>
+                        <div class="email-snippet">${email.snippet}</div>
+                        ${tokensHtml}
+                    </div>
+                `;
+            });
+            
+            emailsListDiv.innerHTML = html;
+            resultsDiv.style.display = 'block';
+        }
+
+        // Status message helper
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.textContent = message;
+            statusDiv.className = `status-message ${type}`;
+            statusDiv.style.display = 'block';
+            
+            if (type === 'success' || type === 'error') {
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        // Start Pipeline Button
+        document.getElementById('start-pipeline-btn').addEventListener('click', startAutoPipeline);
+    </script>
+</body>
+</html>
