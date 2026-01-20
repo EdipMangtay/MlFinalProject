@@ -309,5 +309,5 @@ This project is for educational purposes.
 
 ## Author
 
-Senior ML Engineer + Python Full-Stack Developer
+Python Full-Stack Developer Ali Edip Mangtay
 
